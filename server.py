@@ -929,7 +929,88 @@ async def shopify_create_webhook(params: CreateWebhookInput) -> str:
     except Exception as e:
         return _error(e)
 
+# ═══════════════════════════════════════════════════════════════════════════
+# METAFIELDS
+# ═══════════════════════════════════════════════════════════════════════════
 
+class GetProductMetafieldsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    product_id: int = Field(..., description="The Shopify product ID")
+
+@mcp.tool(
+    name="shopify_get_product_metafields",
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def shopify_get_product_metafields(params: GetProductMetafieldsInput) -> str:
+    """Retrieve all metafields for a product, including namespace, key, type and value."""
+    try:
+        data = await _request("GET", f"products/{params.product_id}/metafields.json")
+        metafields = data.get("metafields", [])
+        return _fmt({"count": len(metafields), "metafields": metafields})
+    except Exception as e:
+        return _error(e)
+
+
+class GetVariantMetafieldsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    variant_id: int = Field(..., description="The Shopify product variant ID")
+
+@mcp.tool(
+    name="shopify_get_variant_metafields",
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def shopify_get_variant_metafields(params: GetVariantMetafieldsInput) -> str:
+    """Retrieve all metafields for a product variant."""
+    try:
+        data = await _request("GET", f"variants/{params.variant_id}/metafields.json")
+        metafields = data.get("metafields", [])
+        return _fmt({"count": len(metafields), "metafields": metafields})
+    except Exception as e:
+        return _error(e)
+
+
+class SetProductMetafieldInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    product_id: int = Field(..., description="Product ID")
+    namespace: str = Field(..., description="Metafield namespace, e.g. 'custom'")
+    key: str = Field(..., description="Metafield key")
+    value: str = Field(..., description="Value as string. For JSON/list types, pass a JSON-encoded string.")
+    type: str = Field(..., description="Shopify metafield type, e.g. single_line_text_field, number_integer, boolean, json, list.single_line_text_field")
+
+@mcp.tool(
+    name="shopify_set_product_metafield",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def shopify_set_product_metafield(params: SetProductMetafieldInput) -> str:
+    """Create or update a product metafield. Shopify upserts on namespace+key."""
+    try:
+        body = {"metafield": {
+            "namespace": params.namespace,
+            "key": params.key,
+            "value": params.value,
+            "type": params.type,
+        }}
+        data = await _request("POST", f"products/{params.product_id}/metafields.json", body=body)
+        return _fmt(data.get("metafield", data))
+    except Exception as e:
+        return _error(e)
+
+
+class DeleteMetafieldInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    metafield_id: int = Field(..., description="Metafield ID to delete")
+
+@mcp.tool(
+    name="shopify_delete_metafield",
+    annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
+)
+async def shopify_delete_metafield(params: DeleteMetafieldInput) -> str:
+    """Permanently delete a metafield by ID. Cannot be undone."""
+    try:
+        await _request("DELETE", f"metafields/{params.metafield_id}.json")
+        return f"Metafield {params.metafield_id} deleted."
+    except Exception as e:
+        return _error(e)
 # ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
